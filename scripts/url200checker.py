@@ -5,24 +5,14 @@ from urllib3.util.retry import Retry
 import threading
 import os
 import csv
-import tkinter as tk
-from tkinter import filedialog, messagebox
 from datetime import timedelta
 import time
 
-# --- Okno wyboru folderu ---
-def choose_output_dir():
-    root = tk.Tk()
-    root.withdraw()
-    messagebox.showinfo("Wybór folderu", "Wybierz folder do zapisu plików CSV")
-    folder = filedialog.askdirectory(title="Wybierz folder docelowy")
-    if not folder:
-        messagebox.showerror("Błąd", "Nie wybrano folderu. Program zostanie zakończony.")
-        exit()
-    return folder
-
-OUTPUT_DIR = choose_output_dir()
+# --- Ścieżka względna do pliku CSV ---
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # katalog skryptu
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, "..", "public", "csv")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+ID_CSV_PATH = os.path.join(OUTPUT_DIR, "id.csv")
 
 # --- Zakres ID ---
 start_id = 1
@@ -37,7 +27,7 @@ def get_session():
     if not hasattr(thread_local, "session"):
         session = requests.Session()
         retries = Retry(
-            total=3,  # retry 3 razy przy problemach
+            total=3,
             backoff_factor=0.5,
             status_forcelist=[500, 502, 503, 504, 403],
             allowed_methods=["GET"]
@@ -104,26 +94,12 @@ for batch_start in range(start_id, end_id + 1, BATCH_SIZE):
 print()  # nowa linia po zakończeniu
 print(f"\nZnaleziono {sum(1 for _, s in results if s==200)} stron 200.")
 
-# --- Zapis wszystkich URL-i ---
-all_csv = os.path.join(OUTPUT_DIR, "all_urls.csv")
-with open(all_csv, "w", newline="", encoding="utf-8") as f:
+# --- Zapis ID 200 w pliku id.csv ---
+with open(ID_CSV_PATH, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerows([[url, status] for url, status in results])
-
-# --- Podział na 200 i inne ---
-urls_200 = os.path.join(OUTPUT_DIR, "urls_200.csv")
-urls_other = os.path.join(OUTPUT_DIR, "urls_other.csv")
-
-with open(urls_200, "w", newline="", encoding="utf-8") as f200, \
-     open(urls_other, "w", newline="", encoding="utf-8") as fother:
-    writer200 = csv.writer(f200)
-    writerOther = csv.writer(fother)
     for url, status in results:
         if status == 200:
-            writer200.writerow([url, status])
-        else:
-            writerOther.writerow([url, status])
+            product_id = url.split(",")[-1] if url else ""
+            writer.writerow([product_id])
 
-print(f"Wszystkie URL-e zapisane w: {all_csv}")
-print(f"URL-e 200 zapisane w: {urls_200}")
-print(f"Pozostałe URL-e zapisane w: {urls_other}")
+print(f"Plik ID zapisany w: {ID_CSV_PATH}")
