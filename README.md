@@ -7,6 +7,8 @@ After cloning the repository and creating a virtual environment, install the req
 ```bash
 pip install -r requirements.txt
 
+```
+
 App Description (Upcoming Features):
 This application is currently under development and will help users track and verify promotional offers at Biedronka, one of Poland’s largest retail chains. Once launched, it will provide up-to-date information on current discounts and special deals, making it easier for users to find the best offers.
 
