@@ -19,7 +19,7 @@ jobs:
 
       - name: Upload to FTP
         run: |
-          lftp -u ${{ secrets.FTP_USER }},${{ secrets.FTP_PASS }} ${{ secrets.FTP_HOST }} <<EOF
+          lftp -u ${{ secrets.FTP_USER }},${{ secrets.FTP_PASS }} ${{ secrets.FTP_HOST }} --env ssl:verify-certificate=no <<EOF
           put temp/products.json -o /public_html/public/js/products.json
           bye
           EOF
