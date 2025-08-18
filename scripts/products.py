@@ -28,13 +28,17 @@ with open(input_file, newline="", encoding="utf-8") as f:
     ids = [line.strip().strip('"') for line in f if line.strip()]
 
 # --- Funkcje pomocnicze ---
-def split_availability_dates(text):
+def get_text(tree: HTMLParser, selector: str) -> str:
+    el = tree.css_first(selector)
+    return el.text(strip=True) if el else ""
+
+def split_availability_dates(text: str):
     match = re.search(r"Oferta od\s*(\d{2}\.\d{2})\s*do\s*(\d{2}\.\d{2})", text)
     if match:
         return match.group(1), match.group(2)
     return "", ""
 
-def parse_description(description):
+def parse_description(description: str):
     ceny = {"C": "", "P": "", "J": "", "R": 0}
     match_regular = re.search(r"Cena regularna:\s*([\d,]+)\s*zł/?([^\s,)]*)", description)
     if match_regular:
@@ -55,7 +59,7 @@ def parse_description(description):
     return ceny
 
 # --- Funkcja pobierająca dane produktu ---
-async def fetch_product(client, product_id):
+async def fetch_product(client: httpx.AsyncClient, product_id: str):
     async with semaphore:
         url = f"{base_url}{product_id}"
         try:
@@ -63,16 +67,11 @@ async def fetch_product(client, product_id):
             if response.status_code != 200:
                 return {"ID": product_id, "Error": f"HTTP {response.status_code}"}
 
-            soup = HTMLParser(response.text)
-            title = soup.title.text(strip=True) if soup.title else ""
-            unavailable_el = soup.css_first("span.product-unavailable")
-            unavailable = unavailable_el.text(strip=True) if unavailable_el else ""
-            description_el = soup.css_first("span.product-description")
-            description = description_el.text(strip=True) if description_el else ""
-            availability_el = soup.css_first("span.product-availability")
-            availability_start, availability_end = split_availability_dates(
-                availability_el.text(strip=True) if availability_el else ""
-            )
+            tree = HTMLParser(response.text)
+            title = tree.css_first("title").text(strip=True) if tree.css_first("title") else ""
+            unavailable = get_text(tree, "span.product-unavailable")
+            description = get_text(tree, "span.product-description")
+            availability_start, availability_end = split_availability_dates(get_text(tree, "span.product-availability"))
             ceny = parse_description(description)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -90,10 +89,19 @@ async def fetch_product(client, product_id):
 
 # --- Główna funkcja ---
 async def main():
-    # Pobieranie danych z HTTP/2
+    print(f"🚀 Start pobierania {len(ids)} produktów...")
+
+    # Pobieranie danych
     async with httpx.AsyncClient(headers=headers, http2=True) as client:
         tasks = [fetch_product(client, pid) for pid in ids]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = []
+        for i, coro in enumerate(asyncio.as_completed(tasks), 1):
+            product = await coro
+            results.append(product)
+
+            # loguj co 1000 produktów
+            if i % 1000 == 0:
+                print(f"✅ Pobrano {i}/{len(ids)} produktów...")
 
     # Wczytanie istniejącego JSON
     if output_file.exists():
@@ -102,12 +110,13 @@ async def main():
     else:
         data = []
 
+    # Aktualizacja danych
     id_map = {p["ID"]: p for p in data}
-
     for product in results:
-        if isinstance(product, Exception) or "Error" in product:
-            continue
         pid = product["ID"]
+        if "Error" in product:
+            continue
+
         existing = id_map.get(pid)
         if not existing:
             entry = {
@@ -125,8 +134,9 @@ async def main():
             existing["A"] = product["A"]
             if not product["U"]:
                 ceny = product["Ceny"]
+                last = existing["H"][-1] if existing["H"] else None
                 new_entry = [product["Timestamp"], ceny["C"], ceny["P"], ceny["J"], ceny["R"]]
-                if not existing["H"] or existing["H"][-1] != new_entry:
+                if last != new_entry:
                     existing["H"].append(new_entry)
 
     # Zapis JSON
@@ -134,7 +144,7 @@ async def main():
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(',', ':'))
 
-    print(f"\n✅ Zapisano/aktualizowano {len(results)} rekordów w {output_file}")
+    print(f"\n🎉 Zapisano/aktualizowano {len(results)} rekordów w {output_file}")
 
 # --- Start ---
 if __name__ == "__main__":
