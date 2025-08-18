@@ -140,6 +140,9 @@ async def main():
         product_id = product["ID"]
         if "Error" in product:
             continue  # pomijamy błędy
+        if product.get("Product Unavailable"):  # pomijamy niedostępne produkty
+            continue
+
         existing_product = next((p for p in existing_data if p.get("ID") == product_id), None)
         if existing_product is None:
             # nowy produkt
