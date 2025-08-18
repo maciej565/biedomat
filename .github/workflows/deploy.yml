@@ -14,7 +14,8 @@ jobs:
 
       - name: Download JSON file
         run: |
-          curl -L -o public/json/products.json https://raw.githubusercontent.com/maciej565/biedomat/main/public/json/products.json
+          mkdir -p temp/
+          curl -L -o temp/products.json https://raw.githubusercontent.com/maciej565/biedomat/main/public/json/products.json
 
       - name: Upload to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -22,6 +23,5 @@ jobs:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
-          local-dir: public/json
+          local-dir: temp/
           server-dir: /public_html/public/js/
-          include: products.json
