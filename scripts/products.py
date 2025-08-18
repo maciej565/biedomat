@@ -135,30 +135,38 @@ async def main():
     else:
         existing_data = []
 
-    # Aktualizacja historii cen
+    # --- Aktualizacja historii cen i dat ---
     for product in results:
         product_id = product["ID"]
         if "Error" in product:
             continue  # pomijamy błędy
-        if product.get("Product Unavailable"):  # pomijamy niedostępne produkty
-            continue
 
         existing_product = next((p for p in existing_data if p.get("ID") == product_id), None)
+
         if existing_product is None:
             # nowy produkt
-            existing_data.append({
+            entry = {
                 "ID": product_id,
                 "Title": product["Title"],
-                "History": [
-                    {"Timestamp": product["Timestamp"], "Ceny": product["Ceny"]}
-                ]
-            })
+                "Availability Start": product["Availability Start"],
+                "Availability End": product["Availability End"],
+                "History": []
+            }
+            if not product.get("Product Unavailable"):
+                entry["History"].append({
+                    "Timestamp": product["Timestamp"],
+                    "Ceny": product["Ceny"]
+                })
+            existing_data.append(entry)
         else:
-            # dodajemy nową aktualizację do historii
-            existing_product.setdefault("History", []).append({
-                "Timestamp": product["Timestamp"],
-                "Ceny": product["Ceny"]
-            })
+            # aktualizacja dat
+            existing_product["Availability Start"] = product["Availability Start"]
+            existing_product["Availability End"] = product["Availability End"]
+            if not product.get("Product Unavailable"):
+                existing_product.setdefault("History", []).append({
+                    "Timestamp": product["Timestamp"],
+                    "Ceny": product["Ceny"]
+                })
 
     # Zapis JSON
     output_file.parent.mkdir(parents=True, exist_ok=True)
