@@ -17,7 +17,7 @@ jobs:
           curl -L -o public/json/products.json https://raw.githubusercontent.com/maciej565/biedomat/main/public/json/products.json
 
       - name: Upload to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v3
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
