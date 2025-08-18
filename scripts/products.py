@@ -6,6 +6,7 @@ import json
 import re
 from asyncio import Semaphore
 from datetime import datetime
+import time
 
 # --- Ścieżki ---
 BASE_DIR = Path(__file__).parent
@@ -89,9 +90,10 @@ async def fetch_product(client: httpx.AsyncClient, product_id: str):
 
 # --- Główna funkcja ---
 async def main():
-    print(f"🚀 Start pobierania {len(ids)} produktów...")
+    total = len(ids)
+    print(f"🚀 Start pobierania {total} produktów...")
+    start_time = time.time()
 
-    # Pobieranie danych
     async with httpx.AsyncClient(headers=headers, http2=True) as client:
         tasks = [fetch_product(client, pid) for pid in ids]
         results = []
@@ -100,8 +102,12 @@ async def main():
             results.append(product)
 
             # loguj co 1000 produktów
-            if i % 1000 == 0:
-                print(f"✅ Pobrano {i}/{len(ids)} produktów...")
+            if i % 1000 == 0 or i == total:
+                elapsed = time.time() - start_time
+                avg_per_item = elapsed / i
+                remaining = (total - i) * avg_per_item
+                eta = time.strftime("%H:%M:%S", time.gmtime(remaining))
+                print(f"✅ Pobrano {i}/{total} produktów... ⏳ ETA: {eta}")
 
     # Wczytanie istniejącego JSON
     if output_file.exists():
@@ -144,7 +150,9 @@ async def main():
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(',', ':'))
 
+    elapsed_total = time.time() - start_time
     print(f"\n🎉 Zapisano/aktualizowano {len(results)} rekordów w {output_file}")
+    print(f"⏱️ Całkowity czas: {elapsed_total:.2f} s")
 
 # --- Start ---
 if __name__ == "__main__":
