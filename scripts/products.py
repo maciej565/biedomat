@@ -46,7 +46,7 @@ def parse_description(description):
             "Cena_promocyjna": "",
             "Jednostka": "",
             "Cena_za_jednostkę": "",
-            "Procent_rabat": ""
+            "Procent_rabat": 0
         },
         "Warianty": {
             "Opcje": "",
@@ -97,30 +97,14 @@ async def fetch_product(client, product_id):
                 return {
                     "URL": url,
                     "Title": f"Błąd HTTP {response.status_code}",
-                    "Product Unavailable": "",
-                    "PLN": "",
-                    "GR": "",
-                    "Amount Info": "",
-                    "Description": "",
-                    "Availability Start": "",
-                    "Availability End": "",
                     "Ceny": {},
-                    "Warianty": {},
-                    "Timestamp": ""
+                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
 
             soup = BeautifulSoup(response.text, "html.parser")
 
             title = soup.title.string.strip() if soup.title else ""
-            product_unavailable = get_text_or_empty(soup, "span.product-unavailable")
-            pln = get_text_or_empty(soup, "span.pln")
-            gr = get_text_or_empty(soup, "span.gr")
-            amount_info = get_text_or_empty(soup, "span.amount")
             description = get_text_or_empty(soup, "span.product-description")
-
-            availability_raw = get_text_or_empty(soup, "span.product-availability")
-            availability_start, availability_end = split_availability_dates(availability_raw)
-
             ceny_warianty = parse_description(description)
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -128,15 +112,7 @@ async def fetch_product(client, product_id):
             return {
                 "URL": url,
                 "Title": title,
-                "Product Unavailable": product_unavailable,
-                "PLN": pln,
-                "GR": gr,
-                "Amount Info": amount_info,
-                "Description": description,
-                "Availability Start": availability_start,
-                "Availability End": availability_end,
                 "Ceny": ceny_warianty["Ceny"],
-                "Warianty": ceny_warianty["Warianty"],
                 "Timestamp": timestamp
             }
 
@@ -144,16 +120,8 @@ async def fetch_product(client, product_id):
             return {
                 "URL": url,
                 "Title": f"Błąd: {repr(e)}",
-                "Product Unavailable": "",
-                "PLN": "",
-                "GR": "",
-                "Amount Info": "",
-                "Description": "",
-                "Availability Start": "",
-                "Availability End": "",
                 "Ceny": {},
-                "Warianty": {},
-                "Timestamp": ""
+                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
 
 # --- Główna funkcja ---
@@ -164,20 +132,33 @@ async def main():
         for coro in tqdm_asyncio.as_completed(tasks, total=len(tasks), desc="Pobieranie produktów"):
             results.append(await coro)
 
-    # Dopisanie do istniejącego pliku JSON
+    # Wczytanie istniejącego pliku JSON jako słownik
     if output_file.exists():
         with open(output_file, "r", encoding="utf-8") as f:
             existing_data = json.load(f)
     else:
-        existing_data = []
+        existing_data = {}
 
-    existing_data.extend(results)
+    # Aktualizacja historii cen dla każdego produktu
+    for product in results:
+        product_id = product["URL"].split(",")[-1]
+        if product_id not in existing_data:
+            existing_data[product_id] = {
+                "Title": product["Title"],
+                "History": []
+            }
 
+        existing_data[product_id]["History"].append({
+            "Timestamp": product["Timestamp"],
+            "Ceny": product["Ceny"]
+        })
+
+    # Zapis JSON
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(existing_data, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ Zapisano {len(results)} nowych rekordów do {output_file}")
+    print(f"\n✅ Zapisano {len(results)} rekordów (historia cen zaktualizowana) do {output_file}")
 
 # --- Start ---
 if __name__ == "__main__":
