@@ -9,19 +9,17 @@ jobs:
   ftp-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
 
       - name: Download JSON file
         run: |
-          curl -L -o products.json https://raw.githubusercontent.com/maciej565/biedomat/main/public/json/products.json
+          mkdir temp
+          curl -L -o temp/products.json https://raw.githubusercontent.com/maciej565/biedomat/main/public/json/products.json
 
       - name: Upload to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASS }}
-          local-dir: .
-          server-dir: /public_html/public/js/
-          include: products.json
+        run: |
+          lftp -u ${{ secrets.FTP_USER }},${{ secrets.FTP_PASS }} ${{ secrets.FTP_HOST }} <<EOF
+          put temp/products.json -o /public_html/public/js/products.json
+          bye
+          EOF
